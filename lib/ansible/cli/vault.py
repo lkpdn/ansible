@@ -425,11 +425,19 @@ class VaultCLI(CLI):
         if len(self.args) == 0 and sys.stdin.isatty():
             display.display("Reading ciphertext input from stdin", stderr=True)
 
-        for f in self.args or ['-']:
-            self.editor.decrypt_file(f, output_file=self.options.output_file)
+        if self.options.embedded:
+            for f in self.args or ['-']:
+                self.editor.decrypt_embedded(f)
 
-        if sys.stdout.isatty():
-            display.display("Decryption successful", stderr=True)
+            if sys.stdout.isatty():
+                display.display("Embedded decryption successful", stderr=True)
+
+        else:
+            for f in self.args or ['-']:
+                self.editor.decrypt_file(f, output_file=self.options.output_file)
+
+            if sys.stdout.isatty():
+                display.display("Decryption successful", stderr=True)
 
     def execute_create(self):
         ''' create and open a file in an editor that will be encryped with the provided vault secret when closed'''
@@ -459,9 +467,14 @@ class VaultCLI(CLI):
 
     def execute_rekey(self):
         ''' re-encrypt a vaulted file with a new secret, the previous secret is required '''
-        for f in self.args:
-            # FIXME: plumb in vault_id, use the default new_vault_secret for now
-            self.editor.rekey_file(f, self.new_encrypt_secret,
-                                   self.new_encrypt_vault_id)
+        if self.options.embedded:
+            for f in self.args:
+                self.editor.rekey_embedded(f, self.new_encrypt_secret,
+                                           self.new_encrypt_vault_id)
+        else:
+            for f in self.args:
+                # FIXME: plumb in vault_id, use the default new_vault_secret for now
+                self.editor.rekey_file(f, self.new_encrypt_secret,
+                                       self.new_encrypt_vault_id)
 
         display.display("Rekey successful", stderr=True)

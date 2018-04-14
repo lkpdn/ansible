@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import warnings
+import yaml;
 from binascii import hexlify
 from binascii import unhexlify
 from binascii import Error as BinasciiError
@@ -74,10 +75,11 @@ except ImportError:
 
 from ansible.errors import AnsibleError, AnsibleAssertionError
 from ansible import constants as C
-from ansible.module_utils.six import PY3, binary_type
+from ansible.module_utils.six import PY3, binary_type, iteritems
 # Note: on py2, this zip is izip not the list based zip() builtin
 from ansible.module_utils.six.moves import zip
 from ansible.module_utils._text import to_bytes, to_text, to_native
+from ansible.parsing.yaml.objects import AnsibleUnicode, AnsibleVaultEncryptedUnicode
 
 try:
     from __main__ import display
@@ -922,6 +924,29 @@ class VaultEditor:
             raise AnsibleError("%s for %s" % (to_bytes(e), to_bytes(filename)))
         self.write_data(plaintext, output_file or filename, shred=False)
 
+    def decrypt_embedded(self, filename):
+
+        # follow the symlink
+        filename = self._real_path(filename)
+
+        try:
+            from ansible.parsing.yaml.loader import AnsibleLoader
+            from ansible.parsing.yaml.dumper import AnsibleDumper
+            with open(filename, "rb") as fh:
+                stream = fh.read()
+                data = AnsibleLoader(stream, filename, self.vault.secrets).get_single_data()
+                for (k, v) in iteritems(data):
+                    if type(v) == AnsibleVaultEncryptedUnicode:
+                        data[k] = to_bytes(v.data)
+
+                for line in yaml.dump(data, Dumper=AnsibleDumper, default_flow_style=False,
+                                      allow_unicode=True).split('\\n'):
+                    # XXX: temporary
+                    print(line)
+
+        except AnsibleError as e:
+            raise AnsibleError("%s for %s" % (to_bytes(e), to_bytes(filename)))
+
     def create_file(self, filename, secret, vault_id=None):
         """ create a new encrypted file """
 
@@ -1019,6 +1044,33 @@ class VaultEditor:
 
         display.vvvvv('Rekeyed file "%s" (decrypted with vault id "%s") was encrypted with new vault-id "%s" and vault secret %s' %
                       (filename, vault_id_used, new_vault_id, new_vault_secret))
+
+    def rekey_embedded(self, filename, new_vault_secret, new_vault_id=None):
+
+        # follow the symlink
+        filename = self._real_path(filename)
+
+        new_vault = VaultLib(secrets={})
+
+        try:
+            from ansible.parsing.yaml.loader import AnsibleLoader
+            from ansible.parsing.yaml.dumper import AnsibleDumper
+            with open(filename, "rb") as fh:
+                stream = fh.read()
+                data = AnsibleLoader(stream, filename, self.vault.secrets).get_single_data()
+                for (k, v) in iteritems(data):
+                    if type(v) == AnsibleVaultEncryptedUnicode:
+                        b_plaintext = to_bytes(v.data)
+                        data[k] = AnsibleVaultEncryptedUnicode.from_plaintext(
+                                      b_plaintext, new_vault, new_vault_secret)
+
+                for line in yaml.dump(data, Dumper=AnsibleDumper, default_flow_style=False,
+                                      allow_unicode=True).split('\\n'):
+                    # XXX: temporary
+                    print(line)
+
+        except AnsibleError as e:
+            raise AnsibleError("%s for %s" % (to_bytes(e), to_bytes(filename)))
 
     def read_data(self, filename):
 

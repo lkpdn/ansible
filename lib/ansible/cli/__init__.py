@@ -454,6 +454,8 @@ class CLI(with_metaclass(ABCMeta, object)):
                               help="vault password file", action="callback", callback=CLI.unfrack_paths, type='string')
             parser.add_option('--vault-id', default=[], dest='vault_ids', action='append', type='string',
                               help='the vault identity to use')
+            parser.add_option("--embedded", default=False, dest='embedded', action='store_true',
+                              help='[vaultfile.yml] is not fully encrypted, but encrypted strings are embedded')
 
         if vault_rekey_opts:
             parser.add_option('--new-vault-password-file', default=None, dest='new_vault_password_file',
