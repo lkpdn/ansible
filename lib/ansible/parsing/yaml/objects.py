@@ -20,6 +20,7 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import yaml
+from collections import OrderedDict
 
 from ansible.module_utils.six import text_type
 from ansible.module_utils._text import to_bytes, to_text
@@ -55,6 +56,11 @@ class AnsibleBaseYAMLObject(object):
 
 class AnsibleMapping(AnsibleBaseYAMLObject, dict):
     ''' sub class for dictionaries '''
+    pass
+
+
+class AnsibleOrderedMapping(AnsibleBaseYAMLObject, OrderedDict):
+    ''' sub class for ordered dictionaries '''
     pass
 
 

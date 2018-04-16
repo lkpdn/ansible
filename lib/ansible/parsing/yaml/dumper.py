@@ -22,7 +22,7 @@ __metaclass__ = type
 import yaml
 
 from ansible.module_utils.six import PY3
-from ansible.parsing.yaml.objects import AnsibleUnicode, AnsibleSequence, AnsibleMapping, AnsibleVaultEncryptedUnicode
+from ansible.parsing.yaml.objects import AnsibleUnicode, AnsibleSequence, AnsibleMapping, AnsibleOrderedMapping, AnsibleVaultEncryptedUnicode
 from ansible.utils.unsafe_proxy import AnsibleUnsafeText
 from ansible.vars.hostvars import HostVars, HostVarsVars
 
@@ -42,6 +42,10 @@ def represent_hostvars(self, data):
 # Note: only want to represent the encrypted data
 def represent_vault_encrypted_unicode(self, data):
     return self.represent_scalar(u'!vault', data._ciphertext.decode(), style='|')
+
+
+def represent_ordered_dict(self, data):
+    return self.represent_mapping('tag:yaml.org,2002:python/odict', data.items())
 
 if PY3:
     represent_unicode = yaml.representer.SafeRepresenter.represent_str
@@ -76,6 +80,11 @@ AnsibleDumper.add_representer(
 AnsibleDumper.add_representer(
     AnsibleMapping,
     yaml.representer.SafeRepresenter.represent_dict,
+)
+
+AnsibleDumper.add_representer(
+    AnsibleOrderedMapping,
+    represent_ordered_dict,
 )
 
 AnsibleDumper.add_representer(

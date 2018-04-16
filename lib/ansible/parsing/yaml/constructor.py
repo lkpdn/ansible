@@ -23,7 +23,7 @@ from yaml.constructor import SafeConstructor, ConstructorError
 from yaml.nodes import MappingNode
 
 from ansible.module_utils._text import to_bytes
-from ansible.parsing.yaml.objects import AnsibleMapping, AnsibleSequence, AnsibleUnicode
+from ansible.parsing.yaml.objects import AnsibleMapping, AnsibleOrderedMapping, AnsibleSequence, AnsibleUnicode
 from ansible.parsing.yaml.objects import AnsibleVaultEncryptedUnicode
 from ansible.utils.unsafe_proxy import wrap_var
 from ansible.parsing.vault import VaultLib
@@ -50,7 +50,14 @@ class AnsibleConstructor(SafeConstructor):
         data.update(value)
         data.ansible_pos = self._node_position_info(node)
 
-    def construct_mapping(self, node, deep=False):
+    def construct_yaml_odict(self, node):
+        data = AnsibleOrderedMapping()
+        yield data
+        value = self.construct_mapping(node, ordered=True)
+        data.update(value)
+        data.ansible_pos = self._node_position_info(node)
+
+    def construct_mapping(self, node, deep=False, ordered=False):
         # Most of this is from yaml.constructor.SafeConstructor.  We replicate
         # it here so that we can warn users when they have duplicate dict keys
         # (pyyaml silently allows overwriting keys)
@@ -59,7 +66,10 @@ class AnsibleConstructor(SafeConstructor):
                                    "expected a mapping node, but found %s" % node.id,
                                    node.start_mark)
         self.flatten_mapping(node)
-        mapping = AnsibleMapping()
+        if ordered:
+            mapping = AnsibleOrderedMapping()
+        else:
+            mapping = AnsibleMapping()
 
         # Add our extra information to the returned value
         mapping.ansible_pos = self._node_position_info(node)
@@ -140,6 +150,10 @@ AnsibleConstructor.add_constructor(
 AnsibleConstructor.add_constructor(
     u'tag:yaml.org,2002:python/dict',
     AnsibleConstructor.construct_yaml_map)
+
+AnsibleConstructor.add_constructor(
+    u'tag:yaml.org,2002:python/odict',
+    AnsibleConstructor.construct_yaml_odict)
 
 AnsibleConstructor.add_constructor(
     u'tag:yaml.org,2002:str',
