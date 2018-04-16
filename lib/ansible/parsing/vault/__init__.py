@@ -79,7 +79,7 @@ from ansible.module_utils.six import PY3, binary_type, iteritems
 # Note: on py2, this zip is izip not the list based zip() builtin
 from ansible.module_utils.six.moves import zip
 from ansible.module_utils._text import to_bytes, to_text, to_native
-from ansible.parsing.yaml.objects import AnsibleMapping, AnsibleSequence, AnsibleUnicode, AnsibleVaultEncryptedUnicode
+from ansible.parsing.yaml.objects import AnsibleMapping, AnsibleOrderedMapping, AnsibleSequence, AnsibleUnicode, AnsibleVaultEncryptedUnicode
 
 try:
     from __main__ import display
@@ -925,7 +925,7 @@ class VaultEditor:
         self.write_data(plaintext, output_file or filename, shred=False)
 
     def _embedded_ciphertext_to_bytes(self, data, callback=None):
-        if type(data) == AnsibleMapping:
+        if type(data) == AnsibleMapping or type(data) == AnsibleOrderedMapping:
             it = iteritems(data)
         elif type(data) == AnsibleSequence:
             it = enumerate(data)
@@ -938,7 +938,7 @@ class VaultEditor:
                     data[k] = callback(to_bytes(v.data))
                 else:
                     data[k] = to_bytes(v.data)
-            elif type(v) == AnsibleMapping or type(v) == AnsibleSequence:
+            elif type(v) == AnsibleMapping or type(v) == AnsibleOrderedMapping or type(v) == AnsibleSequence:
                 data[k] = self._embedded_ciphertext_to_bytes(v, callback)
 
         return data
