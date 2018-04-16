@@ -79,7 +79,7 @@ from ansible.module_utils.six import PY3, binary_type, iteritems
 # Note: on py2, this zip is izip not the list based zip() builtin
 from ansible.module_utils.six.moves import zip
 from ansible.module_utils._text import to_bytes, to_text, to_native
-from ansible.parsing.yaml.objects import AnsibleUnicode, AnsibleVaultEncryptedUnicode
+from ansible.parsing.yaml.objects import AnsibleMapping, AnsibleSequence, AnsibleUnicode, AnsibleVaultEncryptedUnicode
 
 try:
     from __main__ import display
@@ -924,6 +924,25 @@ class VaultEditor:
             raise AnsibleError("%s for %s" % (to_bytes(e), to_bytes(filename)))
         self.write_data(plaintext, output_file or filename, shred=False)
 
+    def _embedded_ciphertext_to_bytes(self, data, callback=None):
+        if type(data) == AnsibleMapping:
+            it = iteritems(data)
+        elif type(data) == AnsibleSequence:
+            it = enumerate(data)
+        else:
+            return data
+
+        for (k, v) in it:
+            if type(v) == AnsibleVaultEncryptedUnicode:
+                if callback:
+                    data[k] = callback(to_bytes(v.data))
+                else:
+                    data[k] = to_bytes(v.data)
+            elif type(v) == AnsibleMapping or type(v) == AnsibleSequence:
+                data[k] = self._embedded_ciphertext_to_bytes(v, callback)
+
+        return data
+
     def decrypt_embedded(self, filename):
 
         # follow the symlink
@@ -935,9 +954,7 @@ class VaultEditor:
             with open(filename, "rb") as fh:
                 stream = fh.read()
                 data = AnsibleLoader(stream, filename, self.vault.secrets).get_single_data()
-                for (k, v) in iteritems(data):
-                    if type(v) == AnsibleVaultEncryptedUnicode:
-                        data[k] = to_bytes(v.data)
+                data = self._embedded_ciphertext_to_bytes(data)
 
                 for line in yaml.dump(data, Dumper=AnsibleDumper, default_flow_style=False,
                                       allow_unicode=True).split('\\n'):
@@ -1058,11 +1075,9 @@ class VaultEditor:
             with open(filename, "rb") as fh:
                 stream = fh.read()
                 data = AnsibleLoader(stream, filename, self.vault.secrets).get_single_data()
-                for (k, v) in iteritems(data):
-                    if type(v) == AnsibleVaultEncryptedUnicode:
-                        b_plaintext = to_bytes(v.data)
-                        data[k] = AnsibleVaultEncryptedUnicode.from_plaintext(
-                                      b_plaintext, new_vault, new_vault_secret)
+                data = self._embedded_ciphertext_to_bytes(data,
+                        lambda plain: AnsibleVaultEncryptedUnicode.from_plaintext(
+                                      plain, new_vault, new_vault_secret))
 
                 for line in yaml.dump(data, Dumper=AnsibleDumper, default_flow_style=False,
                                       allow_unicode=True).split('\\n'):
